@@ -14,6 +14,29 @@ HIGHLIGHT = "#F58518"
 @st.cache_data
 def load_data(path: str) -> pd.DataFrame:
     df = pd.read_csv(path)
+    
+    # Normalize column names so user_id / userId / UserID all work
+    def key(c):
+        return str(c).strip().lower().replace("_", "").replace(" ", "").replace("-", "")
+
+    canonical = {
+        "userid": "userId",
+        "movieid": "movieId",
+        "rating": "rating",
+        "timestamp": "timestamp",
+        "title": "title",
+        "year": "year",
+        "genres": "genres",
+        "genre": "genres",
+    }
+    df = df.rename(columns={c: canonical[key(c)] for c in df.columns if key(c) in canonical})
+
+    required = ["userId", "movieId", "rating", "title", "year", "genres"]
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        st.error(f"Missing columns: {missing}. Columns found in the CSV: {list(df.columns)}")
+        st.stop()
+
     df["year"] = pd.to_numeric(df["year"], errors="coerce")
     df["genres"] = df["genres"].fillna("")
     return df
@@ -89,7 +112,7 @@ with tab1:
                  color_discrete_sequence=[ACCENT], text="count")
     fig.update_traces(texttemplate="%{text:,}", textposition="outside")
     fig.update_layout(height=max(400, 28 * len(counts)), margin=dict(l=0, r=40, t=10, b=0))
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig)
     st.caption("Multi-genre movies count once under each of their genres, "
                "so totals exceed the number of movies.")
 
@@ -112,7 +135,7 @@ with tab2:
             hovertemplate="%{y}<br>Mean: %{x:.3f}<br>Ratings: %{customdata:,}<extra></extra>"))
         fig.update_xaxes(range=[lo, hi], title="Mean rating (axis zoomed, does not start at 0)")
         fig.update_layout(height=max(400, 28 * len(stats)), margin=dict(l=0, r=40, t=10, b=0))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig)
         best, worst = stats.iloc[-1], stats.iloc[0]
         c1, c2 = st.columns(2)
         c1.success(f"Highest: {best['genre']} ({best['mean']:.2f}, {int(best['n']):,} ratings)")
@@ -140,7 +163,7 @@ with tab3:
         fig.update_yaxes(title_text="# ratings", row=2, col=1)
         fig.update_xaxes(title_text="Movie release year", row=2, col=1)
         fig.update_layout(height=600, showlegend=False, margin=dict(l=0, r=0, t=10, b=0))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig)
 
 # ---------------------------------------------------------------- Q4
 with tab4:
@@ -179,7 +202,7 @@ with tab4:
             if t.empty:
                 st.warning(f"No movies have at least {floor} ratings.")
             else:
-                st.plotly_chart(chart(t, floor, uniq), use_container_width=True)
+                st.plotly_chart(chart(t, floor, uniq))
     st.caption("Bars show mean rating (number of ratings). Orange = in only one of the two lists.")
 
     if not ta.empty and not tb.empty:
@@ -192,4 +215,4 @@ with tab4:
             f"Rank @ ≥{floor_a}": [rank_a.get(i, "—") for i in ids],
             f"Rank @ ≥{floor_b}": [rank_b.get(i, "—") for i in ids],
         })
-        st.dataframe(table, hide_index=True, use_container_width=True)
+        st.dataframe(table, hide_index=True)
